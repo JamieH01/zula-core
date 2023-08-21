@@ -73,18 +73,22 @@ impl ShellState {
         head
     }
 
-    pub fn exec(&mut self, cmd: &str, args: &[&str]) -> Result<(), ZulaError> {
-        if cmd == "cd" {
+    pub fn exec(
+        &mut self,
+        cmd: impl AsRef<str>,
+        args: &[impl AsRef<str>],
+    ) -> Result<(), ZulaError> {
+        if cmd.as_ref() == "cd" {
             match args.get(0) {
-                Some(targ) => return self.set_cwd(targ),
+                Some(targ) => return self.set_cwd(targ.as_ref()),
                 None => return Err(ZulaError::CommandEmpty),
             }
         }
 
-        let mut exec = Command::new(cmd);
+        let mut exec = Command::new(cmd.as_ref());
 
         for e in args {
-            exec.arg(e);
+            exec.arg(e.as_ref());
         }
 
         let init = exec.spawn();
@@ -92,7 +96,7 @@ impl ShellState {
         let mut proc = match init {
             Ok(c) => c,
             Err(e) if e.kind() == ErrorKind::NotFound => {
-                { Err(ZulaError::InvalidCmd(cmd.to_owned())) }?
+                { Err(ZulaError::InvalidCmd(cmd.as_ref().to_owned())) }?
             }
             Err(e) => { Err(Into::<ZulaError>::into(e)) }?,
         };
