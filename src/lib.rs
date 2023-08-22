@@ -10,6 +10,12 @@ use std::{
 
 use termion::raw::{IntoRawMode, RawTerminal};
 
+mod plug;
+pub use plug::{PluginHook, Plugin};
+
+
+
+#[repr(C)]
 pub struct ShellState {
     cwd: String,
     pub header: fn(state: &ShellState) -> String,
@@ -22,6 +28,7 @@ pub struct ShellState {
 pub struct Config {
     pub aliases: HashMap<String, String>,
     pub hotkeys: HashMap<char, String>,
+    pub plugins: Vec<PluginHook>,
 }
 
 impl Config {
@@ -29,16 +36,14 @@ impl Config {
         Self {
             aliases: HashMap::new(),
             hotkeys: HashMap::new(),
+            plugins: vec![],
         }
     }
 }
 
 impl ShellState {
     pub fn new() -> Result<Self, ZulaError> {
-        let cwd = match dirs::home_dir().map(|s| s.to_string_lossy().to_string()) {
-            Some(s) => s,
-            None => env::current_dir()?.to_string_lossy().to_string(),
-        };
+        let cwd = env::current_dir()?.to_string_lossy().to_string();
 
         Ok(Self {
             cwd,
@@ -112,12 +117,19 @@ pub enum ZulaError {
     CommandEmpty,
     InvalidDir,
     RecursiveAlias,
+    InvalidPlugin,
+    LibErr(libloading::Error),
     Opaque(Box<dyn Error>),
 }
 
 impl From<io::Error> for ZulaError {
     fn from(value: io::Error) -> Self {
         Self::Io(value)
+    }
+}
+impl From<libloading::Error> for ZulaError {
+    fn from(value: libloading::Error) -> Self {
+        Self::LibErr(value)
     }
 }
 impl From<Box<dyn Error>> for ZulaError {
@@ -136,6 +148,8 @@ impl Display for ZulaError {
             Self::CommandEmpty => write!(f, "command not given\r\n"),
             Self::InvalidDir => write!(f, "directory does not exist\r\n"),
             Self::RecursiveAlias => write!(f, "recursive alias called\r\n"),
+            Self::InvalidPlugin => write!(f, "plugin not found\r\n"),
+            Self::LibErr(e) => write!(f, "lib error: {e}\r\n"),
             Self::Opaque(e) => write!(f, "external error: {e}\r\n"),
         }
     }
@@ -146,8 +160,10 @@ impl Error for ZulaError {
         #[allow(unreachable_patterns)]
         match self {
             Self::Io(e) => Some(e),
+            Self::LibErr(e) => Some(e),
             Self::Opaque(e) => Some(e.deref()),
             _ => None,
         }
     }
 }
+
