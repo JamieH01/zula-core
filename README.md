@@ -18,6 +18,7 @@ zula-core = "3.0.0"
 Import the [`Plugin`] trait and implement it on your plugin type.
 ```rust
 use zula-core::{Plugin, ShellState};
+use std::error::Error;
 
 pub struct MyPlugin;
 
@@ -31,7 +32,7 @@ impl Plugin for MyPlugin {
     fn name(&self) -> &str {
         "my_plugin"
     }
-    fn call(&self, state: *mut ShellState) {
+    fn call(&self, state: *mut ShellState) -> Result<(), Box<dyn Error>> {
         println!("Hello, plugin!")
     }
 }
