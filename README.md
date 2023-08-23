@@ -1,1 +1,2 @@
-zula-core is the core module of the zula shell. This crate is currently WIP; once the plugin system for zula is complete this will become much more useful and necessary for writing plugins.
+zula-core is the core module of the zula shell.
+The docs.rs page (https://docs.rs/zula-core/2.0.0/zula_core/) covers how to use this crate.

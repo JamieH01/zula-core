@@ -1,3 +1,45 @@
+#![doc = r#"`zula-core` contains the core functionality of the zula shell, and is required for writing
+plugins. This api is experimental, and may introduce breaking changes.
+
+# Plugin Guide
+To create a plugin, first initialize a library crate.
+```
+cargo new my_plugin --lib
+```
+Set the crate type to `cdylib`, and add `zula-core` as a dependency.
+```
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+zula-core = "1.0.0"
+```
+Import the [`Plugin`] trait and implement it on your plugin type.
+```
+use zula-core::{Plugin, ShellState};
+
+pub struct MyPlugin;
+
+impl Plugin for MyPlugin {
+    //since this function is called across abi boundaries, its important to include no_mangle so
+    //that rustc leaves the symbol as-is and can be called properly.
+    #[no_mangle]
+    fn init(&self) -> Box<dyn Plugin> {
+        Box::new(Self)
+    }
+    fn name(&self) -> &str {
+        "my_plugin"
+    }
+    fn call(&self, state: *mut ShellState) {
+        println!("Hello, plugin!")
+    }
+}
+```
+Run `cargo build --release` to build your plugin. The library file should be in `target/release/lib<name>.so`. This is the file that you'll put in your plugins folder.
+
+Thats it! Run `zula cfg` inside zula to check that its loaded, and run `plugin.<name>` to use it. Due to weird ownership relationships, `call` has to take a raw pointer, so use it responsibly.
+"#]
+
 use std::{
     collections::HashMap,
     env,
@@ -5,17 +47,18 @@ use std::{
     fmt::Display,
     io::{self, stdin, stdout, ErrorKind, Stdin, Stdout},
     ops::Deref,
-    process::Command,
+    process::Command, ffi::OsStr,
 };
 
 use termion::raw::{IntoRawMode, RawTerminal};
 
 mod plug;
-pub use plug::{PluginHook, Plugin};
+pub use plug::{Plugin, PluginHook};
 
 
 
 #[repr(C)]
+///The core shell state object. This api is WIP, and may become more locked down in the future.
 pub struct ShellState {
     cwd: String,
     pub header: fn(state: &ShellState) -> String,
@@ -25,10 +68,11 @@ pub struct ShellState {
     pub stdin: Stdin,
     pub stdout: RawTerminal<Stdout>,
 }
+///Holds configuration info.
 pub struct Config {
     pub aliases: HashMap<String, String>,
     pub hotkeys: HashMap<char, String>,
-    pub plugins: Vec<PluginHook>,
+    plugins: HashMap<String, PluginHook>,
 }
 
 impl Config {
@@ -36,12 +80,13 @@ impl Config {
         Self {
             aliases: HashMap::new(),
             hotkeys: HashMap::new(),
-            plugins: vec![],
+            plugins: HashMap::new(),
         }
     }
 }
 
 impl ShellState {
+    ///Initializes a new shell. Do not use this if making plugins.
     pub fn new() -> Result<Self, ZulaError> {
         let cwd = env::current_dir()?.to_string_lossy().to_string();
 
@@ -63,21 +108,25 @@ impl ShellState {
         })
     }
 
+    ///Get the current working directory of the shell.
     pub fn get_cwd(&self) -> &str {
         &self.cwd
     }
+    ///Set the current working directory of the shell. Will error if the path is not found.
     pub fn set_cwd(&mut self, path: &str) -> Result<(), ZulaError> {
         env::set_current_dir(path).map_err(|_| ZulaError::InvalidDir)?;
         self.cwd = env::current_dir().map(|s| s.to_string_lossy().to_string())?;
         Ok(())
     }
-
+    
+    ///Returns the header or "status bar."
     pub fn get_header(&self) -> String {
         let mut head = (self.header)(self);
         head.push_str("\x1b[0m");
         head
     }
-
+    
+    ///Execute a command. Does no proccessing such as aliases, chaining, and quoting.
     pub fn exec(
         &mut self,
         cmd: impl AsRef<str>,
@@ -108,9 +157,24 @@ impl ShellState {
         proc.wait()?;
         Ok(())
     }
+    ///Attempt to load a plugin from a path.
+    pub fn load_plugin(&mut self, path: impl AsRef<OsStr>) -> Result<(), libloading::Error> {
+        let plug = unsafe {PluginHook::new(path)}?;
+        self.config.plugins.insert(plug.name().to_owned(), plug);
+        Ok(())
+    }
+    ///Returns a hook to the given plugin if it exists.
+    pub fn plugin_lookup(&self, name:&str) -> Result<&PluginHook, ZulaError> {
+        self.config.plugins.get(name).ok_or(ZulaError::InvalidPlugin)
+    }
+    ///Returns an iterator over the currently loaded plugin names.
+    pub fn plugin_names(&self) -> std::collections::hash_map::Keys<'_, String, PluginHook> {
+        self.config.plugins.keys()
+    }
 }
 
 #[derive(Debug)]
+///The zula shell error type. All errors can be converted to the `Opaque` variant.
 pub enum ZulaError {
     Io(io::Error),
     InvalidCmd(String),
