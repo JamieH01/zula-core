@@ -1,4 +1,4 @@
-use std::{ops::{DerefMut, Deref}, path::Path, ffi::OsStr};
+use std::{ops::{DerefMut, Deref}, path::Path, ffi::OsStr, error::Error};
 
 use libloading::Library;
 
@@ -13,7 +13,7 @@ pub trait Plugin {
     ///not an associated constant.
     fn name(&self) -> &str;
     ///The "heart" of the plugin; this is called with the syntax `plugin.<name>`.
-    fn call(&self, _state: *mut ShellState) -> Box<dyn Error> { Ok(()) }
+    fn call(&self, _state: *mut ShellState) -> Result<(), Box<dyn Error>> { Ok(()) }
 }
 
 ///Represents a plugin object. Not very useful outside of internal functions.
