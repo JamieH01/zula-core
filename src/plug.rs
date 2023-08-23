@@ -13,7 +13,7 @@ pub trait Plugin {
     ///not an associated constant.
     fn name(&self) -> &str;
     ///The "heart" of the plugin; this is called with the syntax `plugin.<name>`.
-    fn call(&self, _state: *mut ShellState) {}
+    fn call(&self, _state: *mut ShellState) -> Box<dyn Error> { Ok(()) }
 }
 
 ///Represents a plugin object. Not very useful outside of internal functions.
