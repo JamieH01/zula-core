@@ -3,20 +3,21 @@ plugins. This api is experimental, and may introduce breaking changes.
 
 # Plugin Guide
 To create a plugin, first initialize a library crate.
-```
+```sh
 cargo new my_plugin --lib
 ```
 Set the crate type to `cdylib`, and add `zula-core` as a dependency.
-```
+```toml
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-zula-core = "2.0.1"
+zula-core = "3.0.2"
 ```
 Import the [`Plugin`] trait and implement it on your plugin type.
 ```
-use zula-core::{Plugin, ShellState};
+use zula_core::{Plugin, ShellState};
+use std::error::Error;
 
 pub struct MyPlugin;
 
@@ -30,8 +31,9 @@ impl Plugin for MyPlugin {
     fn name(&self) -> &str {
         "my_plugin"
     }
-    fn call(&self, state: *mut ShellState) {
-        println!("Hello, plugin!")
+    fn call(&self, state: *mut ShellState) -> Result<(), Box<dyn Error>> {
+        println!("Hello, plugin!");
+        Ok(())
     }
 }
 ```
@@ -44,18 +46,17 @@ use std::{
     collections::HashMap,
     env,
     error::Error,
+    ffi::OsStr,
     fmt::Display,
     io::{self, stdin, stdout, ErrorKind, Stdin, Stdout},
     ops::Deref,
-    process::Command, ffi::OsStr,
+    process::Command,
 };
 
 use termion::raw::{IntoRawMode, RawTerminal};
 
 mod plug;
 pub use plug::{Plugin, PluginHook};
-
-
 
 #[repr(C)]
 ///The core shell state object. This api is WIP, and may become more locked down in the future.
@@ -118,14 +119,14 @@ impl ShellState {
         self.cwd = env::current_dir().map(|s| s.to_string_lossy().to_string())?;
         Ok(())
     }
-    
+
     ///Returns the header or "status bar."
     pub fn get_header(&self) -> String {
         let mut head = (self.header)(self);
         head.push_str("\x1b[0m");
         head
     }
-    
+
     ///Execute a command. Does no proccessing such as aliases, chaining, and quoting.
     pub fn exec(
         &mut self,
@@ -159,13 +160,16 @@ impl ShellState {
     }
     ///Attempt to load a plugin from a path.
     pub fn load_plugin(&mut self, path: impl AsRef<OsStr>) -> Result<(), libloading::Error> {
-        let plug = unsafe {PluginHook::new(path)}?;
+        let plug = unsafe { PluginHook::new(path) }?;
         self.config.plugins.insert(plug.name().to_owned(), plug);
         Ok(())
     }
     ///Returns a hook to the given plugin if it exists.
-    pub fn plugin_lookup(&self, name:&str) -> Result<&PluginHook, ZulaError> {
-        self.config.plugins.get(name).ok_or(ZulaError::InvalidPlugin)
+    pub fn plugin_lookup(&self, name: &str) -> Result<&PluginHook, ZulaError> {
+        self.config
+            .plugins
+            .get(name)
+            .ok_or(ZulaError::InvalidPlugin)
     }
     ///Returns an iterator over the currently loaded plugin names.
     pub fn plugin_names(&self) -> std::collections::hash_map::Keys<'_, String, PluginHook> {
@@ -230,4 +234,3 @@ impl Error for ZulaError {
         }
     }
 }
-

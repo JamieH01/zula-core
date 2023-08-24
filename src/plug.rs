@@ -1,4 +1,9 @@
-use std::{ops::{DerefMut, Deref}, path::Path, ffi::OsStr, error::Error};
+use std::{
+    error::Error,
+    ffi::OsStr,
+    ops::{Deref, DerefMut},
+    path::Path, mem::ManuallyDrop,
+};
 
 use libloading::Library;
 
@@ -13,13 +18,15 @@ pub trait Plugin {
     ///not an associated constant.
     fn name(&self) -> &str;
     ///The "heart" of the plugin; this is called with the syntax `plugin.<name>`.
-    fn call(&self, _state: *mut ShellState) -> Result<(), Box<dyn Error>> { Ok(()) }
+    fn call(&self, _state: *mut ShellState) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
 }
 
 ///Represents a plugin object. Not very useful outside of internal functions.
 pub struct PluginHook {
     hook: libloading::Library,
-    obj: Box<dyn Plugin>,
+    obj: ManuallyDrop<Box<dyn Plugin>>,
     path: String,
 }
 
@@ -32,13 +39,33 @@ impl Deref for PluginHook {
 }
 
 impl PluginHook {
-    pub unsafe fn new<S: AsRef<OsStr>>(path:S) -> Result<Self, libloading::Error> {
-        let str_path = OsStr::new(&path).to_str().map(|s| s.to_owned()).unwrap_or("".to_owned());
-        let hook =  Library::new(path)?;
+    pub unsafe fn new<S: AsRef<OsStr>>(path: S) -> Result<Self, libloading::Error> {
+        let str_path = OsStr::new(&path)
+            .to_str()
+            .map(|s| s.to_owned())
+            .unwrap_or("".to_owned());
+        let hook = Library::new(path)?;
         let obj = hook.get::<libloading::Symbol<fn() -> Box<dyn Plugin>>>(b"init")?();
-        Ok(Self { hook, obj, path:str_path})
-
+        Ok(Self {
+            hook,
+            obj: ManuallyDrop::new(obj),
+            path: str_path,
+        })
     }
 }
 
+impl Drop for PluginHook {
+    fn drop(&mut self) {
+        unsafe { ManuallyDrop::drop(&mut self.obj) };
+    }
+}
 
+#[cfg(test)]
+mod tests {
+    use crate::PluginHook;
+
+    #[test]
+    fn drop() {
+        let hook = unsafe { PluginHook::new("/home/jamie/.config/zula/plugins/libtest_plugin.so") }.unwrap();
+    }
+}
