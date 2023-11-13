@@ -12,7 +12,7 @@ Set the crate type to `cdylib`, and add `zula-core` as a dependency.
 crate-type = ["cdylib"]
 
 [dependencies]
-zula-core = "3.0.3"
+zula-core = "3.0.4"
 ```
 Import the [`Plugin`] trait and implement it on your plugin type.
 ```
@@ -189,7 +189,7 @@ pub enum ZulaError {
     RecursiveAlias,
     InvalidPlugin,
     LibErr(libloading::Error),
-    Opaque(Box<dyn Error>),
+    Opaque(Box<dyn Error + Send + Sync>),
 }
 
 impl From<io::Error> for ZulaError {
@@ -202,8 +202,8 @@ impl From<libloading::Error> for ZulaError {
         Self::LibErr(value)
     }
 }
-impl From<Box<dyn Error>> for ZulaError {
-    fn from(value: Box<(dyn std::error::Error + 'static)>) -> Self {
+impl From<Box<dyn Error + Send + Sync>> for ZulaError {
+    fn from(value: Box<(dyn std::error::Error + Send + Sync + 'static)>) -> Self {
         Self::Opaque(value)
     }
 }

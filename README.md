@@ -13,7 +13,7 @@ Set the crate type to `cdylib`, and add `zula-core` as a dependency.
 crate-type = ["cdylib"]
 
 [dependencies]
-zula-core = "3.0.2"
+zula-core = "3.0.4"
 ```
 Import the [`Plugin`] trait and implement it on your plugin type.
 ```rust
