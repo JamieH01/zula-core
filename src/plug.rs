@@ -10,7 +10,7 @@ use libloading::Library;
 use crate::ShellState;
 
 ///The plugin trait that defines how a plugin object acts.
-pub trait Plugin {
+pub trait Plugin: Send + Sync {
     ///The initializer function. Don't mind the `&self` parameter, its a technicallity for this
     ///trait to be abi-safe.
     fn init(&self) -> Box<dyn Plugin>;

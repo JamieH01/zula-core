@@ -12,7 +12,7 @@ Set the crate type to `cdylib`, and add `zula-core` as a dependency.
 crate-type = ["cdylib"]
 
 [dependencies]
-zula-core = "3.0.5"
+zula-core = "4.0.0"
 ```
 Import the [`Plugin`] trait and implement it on your plugin type.
 ```
@@ -76,6 +76,7 @@ pub struct Config {
     plugins: HashMap<String, PluginHook>,
     pub safety: bool, 
 }
+
 
 impl Config {
     pub fn new() -> Self {
