@@ -18,7 +18,7 @@ pub trait Plugin {
     ///not an associated constant.
     fn name(&self) -> &str;
     ///The "heart" of the plugin; this is called with the syntax `plugin.<name>`.
-    fn call(&self, _state: *mut ShellState) -> Result<(), Box<dyn Error>> {
+    fn call(&self, _state: *mut ShellState) -> Result<(), Box<dyn Error + Send + Sync>> {
         Ok(())
     }
 }
