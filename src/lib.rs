@@ -12,7 +12,7 @@ Set the crate type to `cdylib`, and add `zula-core` as a dependency.
 crate-type = ["cdylib"]
 
 [dependencies]
-zula-core = "3.0.2"
+zula-core = "3.0.3"
 ```
 Import the [`Plugin`] trait and implement it on your plugin type.
 ```
@@ -74,6 +74,7 @@ pub struct Config {
     pub aliases: HashMap<String, String>,
     pub hotkeys: HashMap<char, String>,
     plugins: HashMap<String, PluginHook>,
+    pub safety: bool, 
 }
 
 impl Config {
@@ -82,6 +83,7 @@ impl Config {
             aliases: HashMap::new(),
             hotkeys: HashMap::new(),
             plugins: HashMap::new(),
+            safety: false
         }
     }
 }
